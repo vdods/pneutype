@@ -273,3 +273,60 @@ fn test_pneu_string_and_pneu_str_5() {
     let x = FreeStandingStr::new_ref("stuff").expect("pass");
     assert_eq!(x.as_str(), "stuff");
 }
+
+#[derive(Debug, serde::Deserialize, Eq, PartialEq, serde::Serialize)]
+struct StronglyTyped<'a> {
+    lowercase: Lowercase,
+    #[serde(borrow)]
+    lowercase_str: &'a LowercaseStr,
+}
+
+#[derive(Debug, serde::Deserialize, Eq, PartialEq, serde::Serialize)]
+struct WeaklyTyped<'a> {
+    lowercase: String,
+    #[serde(borrow)]
+    lowercase_str: &'a str,
+}
+
+#[test]
+fn test_pneu_string_and_pneu_str_serde() {
+    // Verify that the validation works as expected when deserializing.
+
+    {
+        let w = WeaklyTyped {
+            lowercase: String::from_str("blahblah").expect("pass"),
+            lowercase_str: "heyhey",
+        };
+        let json = serde_json::to_string(&w).expect("pass");
+        let s: StronglyTyped = serde_json::from_str(&json).expect("pass");
+        assert_eq!(s.lowercase.as_str(), w.lowercase.as_str());
+        assert_eq!(s.lowercase_str.as_str(), w.lowercase_str);
+    }
+    {
+        let w = WeaklyTyped {
+            lowercase: String::from_str("NOT LOWERCASE").expect("pass"),
+            lowercase_str: "heyhey",
+        };
+        let json = serde_json::to_string(&w).expect("pass");
+        let err = serde_json::from_str::<StronglyTyped>(&json).expect_err("pass");
+        println!("serde_json::from_str err (expected): {}", err);
+    }
+    {
+        let w = WeaklyTyped {
+            lowercase: String::from_str("blahblah").expect("pass"),
+            lowercase_str: "I AM YELLING",
+        };
+        let json = serde_json::to_string(&w).expect("pass");
+        let err = serde_json::from_str::<StronglyTyped>(&json).expect_err("pass");
+        println!("serde_json::from_str err (expected): {}", err);
+    }
+    {
+        let w = WeaklyTyped {
+            lowercase: String::from_str("NOT LOWERCASE").expect("pass"),
+            lowercase_str: "I AM YELLING",
+        };
+        let json = serde_json::to_string(&w).expect("pass");
+        let err = serde_json::from_str::<StronglyTyped>(&json).expect_err("pass");
+        println!("serde_json::from_str err (expected): {}", err);
+    }
+}

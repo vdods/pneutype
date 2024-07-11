@@ -1,6 +1,6 @@
 /// A string that is_ascii_lowercase, i.e. has no non-ascii-lowercase chars.
 #[derive(Debug, Eq, PartialEq, Hash, pneutype::PneuString, serde::Serialize)]
-#[pneu_string(borrow = "LowercaseStr")]
+#[pneu_string(borrow = "LowercaseStr", deserialize)]
 pub struct Lowercase(String);
 
 impl Lowercase {
@@ -11,39 +11,9 @@ impl Lowercase {
     }
 }
 
-struct LowercaseVisitor;
-
-impl<'a> serde::de::Visitor<'a> for LowercaseVisitor {
-    type Value = Lowercase;
-
-    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        formatter.write_str("a string")
-    }
-    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-    where
-        E: serde::de::Error,
-    {
-        Lowercase::try_from(v).map_err(serde::de::Error::custom)
-    }
-    fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
-    where
-        E: serde::de::Error,
-    {
-        Lowercase::new(v).map_err(serde::de::Error::custom)
-    }
-}
-
-impl<'de> serde::Deserialize<'de> for Lowercase {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        deserializer.deserialize_string(LowercaseVisitor)
-    }
-}
-
 /// The str-equivalent of Lowercase.  Is used to pass validated-lowercase strings by reference.
 #[derive(Debug, Eq, PartialEq, Hash, pneutype::PneuStr, serde::Serialize)]
+#[pneu_str(deserialize)]
 #[repr(transparent)] // `repr(transparent)` is required for PneuStr!
 pub struct LowercaseStr(str);
 
@@ -69,30 +39,5 @@ impl pneutype::Validate for LowercaseStr {
         } else {
             Err("must be an all-lowercase string")
         }
-    }
-}
-
-struct LowercaseStrVisitor;
-
-impl<'a> serde::de::Visitor<'a> for LowercaseStrVisitor {
-    type Value = &'a LowercaseStr;
-
-    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        formatter.write_str("a borrowed lowercase string")
-    }
-    fn visit_borrowed_str<E>(self, v: &'a str) -> Result<Self::Value, E>
-    where
-        E: serde::de::Error,
-    {
-        LowercaseStr::new_ref(v).map_err(serde::de::Error::custom)
-    }
-}
-
-impl<'de: 'a, 'a> serde::Deserialize<'de> for &'a LowercaseStr {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        deserializer.deserialize_str(LowercaseStrVisitor)
     }
 }
