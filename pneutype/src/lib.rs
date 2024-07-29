@@ -104,7 +104,7 @@
 //!
 //! fn demonstrate_serde() {
 //!     let document = Document {
-//!         splunge: Splunge::new("stuff".to_string()).expect("pass"),
+//!         splunge: Splunge::try_from("stuff".to_string()).expect("pass"),
 //!         splunge_str: SplungeStr::new_ref("and things").expect("pass"),
 //!     };
 //!     let json = serde_json::to_string(&document).expect("pass");

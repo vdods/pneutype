@@ -13,6 +13,9 @@ struct PneuStringArguments {
     /// Specify true to implement serde::Deserialize.  The `serde` crate must be imported into the crate in which this
     /// PneuString is defined in order for this to work.
     deserialize: bool,
+    /// Optionally specify the name for a function that will return &self as a reference to the associated PneuStr.
+    /// If not specified, then the name will be "as_pneu_str".
+    as_pneu_str: Option<String>,
 }
 
 #[proc_macro_derive(PneuString, attributes(pneu_string))]
@@ -49,7 +52,7 @@ pub fn derive_pneu_string(input: proc_macro::TokenStream) -> proc_macro::TokenSt
                         where
                             E: serde::de::Error,
                         {
-                            #pneu_string_name::new(v).map_err(serde::de::Error::custom)
+                            #pneu_string_name::try_from(v).map_err(serde::de::Error::custom)
                         }
                     }
 
@@ -61,17 +64,31 @@ pub fn derive_pneu_string(input: proc_macro::TokenStream) -> proc_macro::TokenSt
         quote! {}
     };
 
+    let as_pneu_str: syn::Ident = if let Some(as_pneu_str) = pneu_string_arguments.as_pneu_str {
+        syn::parse_str(&as_pneu_str).unwrap()
+    } else {
+        syn::parse_str("as_pneu_str").unwrap()
+    };
+
     let output = quote! {
         impl #pneu_string_name {
-            /// Validate and construct this PneuString from a String.
-            pub fn new(s: String) -> Result<Self, <#pneu_str_name as pneutype::Validate>::Error> {
-                use pneutype::Validate;
-                #pneu_str_name::validate(s.as_str())?;
-                unsafe { Ok(Self::new_unchecked(s)) }
+            /// Unsafe: Construct this PneuString where the input is already guaranteed (by the caller) to be valid.
+            /// However, a debug_assert! will be used to check the validity condition.  For a const version of this,
+            /// see new_unchecked_const.
+            pub unsafe fn new_unchecked(s: String) -> Self {
+                debug_assert!(<#pneu_str_name as pneutype::Validate>::validate(s.as_str()).is_ok(), "programmer error: new_unchecked was passed invalid data");
+                Self(s)
             }
             /// Unsafe: Construct this PneuString where the input is already guaranteed (by the caller) to be valid.
-            unsafe fn new_unchecked(s: String) -> Self {
+            /// Because this is a const function, the validity condition can't be checked in a debug_assert! as it
+            /// is in new_ref_unchecked.
+            pub const unsafe fn new_unchecked_const(s: String) -> Self {
                 Self(s)
+            }
+            /// Return self as a reference to the associated PneuStr, i.e. a strongly-typed version of as_str.
+            pub fn #as_pneu_str(&self) -> &#pneu_str_name {
+                use std::ops::Deref;
+                self.deref()
             }
             /// Return a &str to the underlying String.
             pub fn as_str(&self) -> &str {
@@ -83,10 +100,29 @@ pub fn derive_pneu_string(input: proc_macro::TokenStream) -> proc_macro::TokenSt
             }
         }
 
+        impl std::convert::AsRef<#pneu_str_name> for #pneu_string_name {
+            fn as_ref(&self) -> &#pneu_str_name {
+                use std::ops::Deref;
+                self.deref()
+            }
+        }
+
+        impl std::convert::AsRef<str> for #pneu_string_name {
+            fn as_ref(&self) -> &str {
+                self.as_str()
+            }
+        }
+
         impl std::borrow::Borrow<#pneu_str_name> for #pneu_string_name {
             fn borrow(&self) -> &#pneu_str_name {
                 use std::ops::Deref;
                 self.deref()
+            }
+        }
+
+        impl std::borrow::Borrow<str> for #pneu_string_name {
+            fn borrow(&self) -> &str {
+                self.as_str()
             }
         }
 
@@ -123,7 +159,8 @@ pub fn derive_pneu_string(input: proc_macro::TokenStream) -> proc_macro::TokenSt
         impl std::borrow::ToOwned for #pneu_str_name {
             type Owned = #pneu_string_name;
             fn to_owned(&self) -> Self::Owned {
-                #pneu_string_name(self.0.to_owned())
+                use std::ops::Deref;
+                #pneu_string_name(self.deref().to_owned())
             }
         }
 
@@ -139,7 +176,9 @@ pub fn derive_pneu_string(input: proc_macro::TokenStream) -> proc_macro::TokenSt
         impl TryFrom<String> for #pneu_string_name {
             type Error = <#pneu_str_name as pneutype::Validate>::Error;
             fn try_from(s: String) -> Result<Self, Self::Error> {
-                Self::new(s)
+                use pneutype::Validate;
+                #pneu_str_name::validate(s.as_str())?;
+                unsafe { Ok(Self::new_unchecked(s)) }
             }
         }
     };
@@ -205,14 +244,35 @@ pub fn derive_pneu_str(input: proc_macro::TokenStream) -> proc_macro::TokenStrea
                 unsafe { Ok(Self::new_ref_unchecked(s)) }
             }
             /// Unsafe: Wrap the given str as a reference to this PneuStr type without validating it.
-            /// This requires the caller to guarantee validity.
-            unsafe fn new_ref_unchecked(s: &str) -> &Self {
+            /// This requires the caller to guarantee validity.  However, a debug_assert! will be used
+            /// to check the validity condition.  For a const version of this, see new_ref_unchecked_const.
+            pub unsafe fn new_ref_unchecked(s: &str) -> &Self {
+                debug_assert!(<Self as pneutype::Validate>::validate(s).is_ok(), "programmer error: new_ref_unchecked was passed invalid data");
+                // See https://stackoverflow.com/questions/64977525/how-can-i-create-newtypes-for-an-unsized-type-and-its-owned-counterpart-like-s
+                &*(s as *const str as *const #pneu_str_name)
+            }
+            /// Unsafe: Wrap the given str as a reference to this PneuStr type without validating it.
+            /// This requires the caller to guarantee validity.  Because this is a const function, the
+            /// validity condition can't be checked in a debug_assert! as it is in new_ref_unchecked.
+            pub const unsafe fn new_ref_unchecked_const(s: &str) -> &Self {
                 // See https://stackoverflow.com/questions/64977525/how-can-i-create-newtypes-for-an-unsized-type-and-its-owned-counterpart-like-s
                 &*(s as *const str as *const #pneu_str_name)
             }
             /// Return the raw &str underlying this PneuStr.
             pub fn as_str(&self) -> &str {
                 &self.0
+            }
+        }
+
+        impl std::convert::AsRef<str> for #pneu_str_name {
+            fn as_ref(&self) -> &str {
+                self.as_str()
+            }
+        }
+
+        impl std::borrow::Borrow<str> for #pneu_str_name {
+            fn borrow(&self) -> &str {
+                self.as_str()
             }
         }
 

@@ -11,7 +11,6 @@ fn test_pneu_string_and_pneu_str_1() {
     println!("t0 (as Display): {}", t0);
 
     Lowercase::try_from("abcdE").expect_err("pass");
-    Lowercase::new("abcdE".to_string()).expect_err("pass");
     <&LowercaseStr>::try_from("abcdE").expect_err("pass");
     LowercaseStr::new_ref("abcdE").expect_err("pass");
 
@@ -25,6 +24,7 @@ fn test_pneu_string_and_pneu_str_1() {
 
     let r1 = <&LowercaseStr>::try_from("abcd").expect("pass");
     assert_eq!(r0, r1);
+    assert_eq!(t1.as_pneu_str(), r1);
 
     let r2 = LowercaseStr::new_ref("abcd").expect("pass");
     assert_eq!(r0, r2);
@@ -37,7 +37,7 @@ fn test_pneu_string_and_pneu_str_1() {
 }
 
 #[derive(Debug, Eq, PartialEq, pneutype::PneuString)]
-#[pneu_string(borrow = "URLStr")]
+#[pneu_string(borrow = "URLStr", as_pneu_str = "as_url_str")]
 struct URL(String);
 
 #[derive(Debug, Eq, PartialEq, pneutype::PneuStr)]
@@ -110,7 +110,6 @@ fn test_pneu_string_and_pneu_str_2() {
         println!("invalid_url_str: {:?}", invalid_url_str);
         URL::from_str(invalid_url_str).expect_err("pass");
         URL::try_from(invalid_url_str).expect_err("pass");
-        URL::new(invalid_url_str.to_string()).expect_err("pass");
         <&URLStr>::try_from(invalid_url_str).expect_err("pass");
         URLStr::new_ref(invalid_url_str).expect_err("pass");
     }
@@ -138,8 +137,9 @@ fn test_pneu_string_and_pneu_str_2() {
     for &url_str in URL_STR_V.iter() {
         URL::from_str(url_str).expect("pass");
         URL::try_from(url_str).expect("pass");
-        URL::try_from(url_str.to_string()).expect("pass");
-        <&URLStr>::try_from(url_str).expect("pass");
+        let u0 = URL::try_from(url_str.to_string()).expect("pass");
+        let u1 = <&URLStr>::try_from(url_str).expect("pass");
+        assert_eq!(u0.as_url_str(), u1);
         URLStr::new_ref(url_str).expect("pass");
 
         let t0 = URL::try_from(url_str).expect("pass");
