@@ -12,6 +12,8 @@ Easily create newtypes analogous to `String` and `str` that obey a particular va
 
 ## To-dos
 
+-   Finish support for generics in `PneuString` and `PneuStr`.
+-   Don't bother with `str_field` and `string_field`, just require that a `PneuStr` has the form `struct XyzStr(str);` or `struct XyzStr<T>(std::marker::PhantomData<T>, str);` and analogous for `PneuString`.
 -   Add pneutypes analogous `Vec<T>` and `[T]`.
 -   Get `Cow` deserializing with borrow for pneutypes.
 -   Maybe make it possible to have a free-standing `PneuString`.  Though this might better just be done by hand.  The advantage of doing this through the `pneutype` crate is that it would get you the impl of `serde::Deserialize` easily.

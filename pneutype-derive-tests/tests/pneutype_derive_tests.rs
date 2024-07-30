@@ -1,4 +1,4 @@
-use pneutype_derive_tests::{Lowercase, LowercaseStr};
+use pneutype_derive_tests::{Lowercase, LowercaseStr, ValueStr, ValueString};
 use std::{borrow::Cow, str::FromStr};
 
 #[test]
@@ -329,4 +329,62 @@ fn test_pneu_string_and_pneu_str_serde() {
         let err = serde_json::from_str::<StronglyTyped>(&json).expect_err("pass");
         println!("serde_json::from_str err (expected): {}", err);
     }
+}
+
+#[test]
+fn test_pneu_str_with_generics() {
+    type I32Str = ValueStr<i32>;
+
+    I32Str::new_ref("").expect_err("pass");
+    I32Str::new_ref("abc").expect_err("pass");
+    I32Str::new_ref("12.34").expect_err("pass");
+
+    let i = I32Str::new_ref("123").expect("pass");
+    assert_eq!(i.as_str(), "123");
+    assert_eq!(i.to_value(), 123i32);
+
+    type BoolStr = ValueStr<bool>;
+
+    BoolStr::new_ref("").expect_err("pass");
+    BoolStr::new_ref("blah").expect_err("pass");
+    BoolStr::new_ref("1").expect_err("pass");
+
+    let b = BoolStr::new_ref("true").expect("pass");
+    assert_eq!(b.as_str(), "true");
+    assert_eq!(b.to_value(), true);
+}
+
+#[test]
+fn test_pneu_string_with_generics() {
+    type I32String = ValueString<i32>;
+    type I32Str = ValueStr<i32>;
+
+    I32String::try_from("").expect_err("pass");
+    I32String::try_from("abc").expect_err("pass");
+    I32String::try_from("12.34").expect_err("pass");
+
+    let mut i = I32String::try_from("123").expect("pass");
+    assert_eq!(i.as_pneu_str(), I32Str::new_ref("123").expect("pass"));
+    assert_eq!(i.as_str(), "123");
+    assert_eq!(i.to_value(), 123i32);
+    i.set_value(&456i32);
+    assert_eq!(i.as_pneu_str(), I32Str::new_ref("456").expect("pass"));
+    assert_eq!(i.as_str(), "456");
+    assert_eq!(i.to_value(), 456i32);
+
+    type BoolString = ValueString<bool>;
+    type BoolStr = ValueStr<bool>;
+
+    BoolString::try_from("").expect_err("pass");
+    BoolString::try_from("blah").expect_err("pass");
+    BoolString::try_from("1").expect_err("pass");
+
+    let mut i = BoolString::try_from("true").expect("pass");
+    assert_eq!(i.as_pneu_str(), BoolStr::new_ref("true").expect("pass"));
+    assert_eq!(i.as_str(), "true");
+    assert_eq!(i.to_value(), true);
+    i.set_value(&false);
+    assert_eq!(i.as_pneu_str(), BoolStr::new_ref("false").expect("pass"));
+    assert_eq!(i.as_str(), "false");
+    assert_eq!(i.to_value(), false);
 }
