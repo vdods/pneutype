@@ -45,8 +45,8 @@ impl pneutype::Validate for LowercaseStr {
 // Generics with PneuString and PneuStr
 
 /// A string that can be parsed into a value of type T: std::str::FromStr.
-#[derive(Debug, Eq, PartialEq, Hash, pneutype::PneuString, serde::Serialize)]
-#[pneu_string(borrow = "ValueStr", deserialize, string_field = "1")]
+#[derive(Debug, Eq, PartialEq, Hash, pneutype::PneuString)]
+#[pneu_string(borrow = "ValueStr", deserialize, serialize, string_field = "1")]
 pub struct ValueString<T: 'static + std::str::FromStr>(std::marker::PhantomData<T>, String);
 
 impl<T: std::str::FromStr> ValueString<T> {
@@ -64,8 +64,8 @@ impl<T: std::str::FromStr> ValueString<T> {
 }
 
 /// The str-equivalent of ValueString.  Is used to pass validated-ValueString strings by reference.
-#[derive(Debug, Eq, PartialEq, Hash, pneutype::PneuStr, serde::Serialize)]
-#[pneu_str(deserialize, str_field = "1")]
+#[derive(Debug, Eq, PartialEq, Hash, pneutype::PneuStr)]
+#[pneu_str(deserialize, serialize, str_field = "1")]
 #[repr(transparent)] // `repr(transparent)` is required for PneuStr!
 pub struct ValueStr<T: 'static + std::str::FromStr>(std::marker::PhantomData<T>, str);
 

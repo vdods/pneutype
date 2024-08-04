@@ -10,9 +10,16 @@ use quote::quote;
 struct PneuStringArguments {
     /// Specify the PneuStr analog to this PneuString.  This will define the target of std::borrow::Borrow and std::ops::Deref.
     borrow: String,
-    /// Specify true to implement serde::Deserialize.  The `serde` crate must be imported into the crate in which this
-    /// PneuString is defined in order for this to work.
+    /// Specify true to derive an implementation of serde::Deserialize.  The `serde` crate must be imported into
+    /// the crate in which this PneuString is defined in order for this to work.  Using this attribute is optional,
+    /// and a manual implementation of serde::Deserialize is of course possible.
     deserialize: bool,
+    /// Specify true to derive an implementation of serde::Serialize.  The `serde` crate must be imported into
+    /// the crate in which this PneuString is defined in order for this to work.  Using this attribute is optional,
+    /// and a manual implementation of serde::Serialize is of course possible.  However, in the case of a PneuString
+    /// with generics, this attribute must be used instead of derive(serde::Serialize) because of the presence of
+    /// std::marker::PhantomData.
+    serialize: bool,
     /// Optionally specify the name for a function that will return &self as a reference to the associated PneuStr.
     /// If not specified, then the name will be "as_pneu_str".
     as_pneu_str: Option<String>,
@@ -55,6 +62,8 @@ pub fn derive_pneu_string(token_stream: proc_macro::TokenStream) -> proc_macro::
     };
 
     let pneu_str_name: syn::Ident = syn::parse_str(&pneu_string_arguments.borrow).unwrap();
+    let string_field: syn::Expr =
+        syn::parse_str(pneu_string_arguments.string_field.as_deref().unwrap_or("0")).unwrap();
 
     let serde_deserialize_maybe = if pneu_string_arguments.deserialize {
         // Create new lifetime parameters 'de and 'a
@@ -145,14 +154,26 @@ pub fn derive_pneu_string(token_stream: proc_macro::TokenStream) -> proc_macro::
         quote! {}
     };
 
+    let serde_serialize_maybe = if pneu_string_arguments.serialize {
+        quote! {
+            impl #pneu_string_impl_generics serde::Serialize for #pneu_string_name #pneu_string_type_generics #pneu_string_where_clause {
+                fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+                where
+                    S: serde::Serializer,
+                {
+                    serializer.serialize_str(self.#string_field.as_str())
+                }
+            }
+        }
+    } else {
+        quote! {}
+    };
+
     let as_pneu_str: syn::Ident = if let Some(as_pneu_str) = pneu_string_arguments.as_pneu_str {
         syn::parse_str(&as_pneu_str).unwrap()
     } else {
         syn::parse_str("as_pneu_str").unwrap()
     };
-
-    let string_field: syn::Expr =
-        syn::parse_str(pneu_string_arguments.string_field.as_deref().unwrap_or("0")).unwrap();
 
     let output = quote! {
         impl #pneu_string_impl_generics #pneu_string_name #pneu_string_type_generics #pneu_string_where_clause {
@@ -241,6 +262,8 @@ pub fn derive_pneu_string(token_stream: proc_macro::TokenStream) -> proc_macro::
             }
         }
 
+        #serde_serialize_maybe
+
         impl #pneu_string_impl_generics std::borrow::ToOwned for #pneu_str_name #pneu_string_type_generics #pneu_string_where_clause {
             type Owned = #pneu_string_name #pneu_string_type_generics;
             fn to_owned(&self) -> Self::Owned {
@@ -290,9 +313,16 @@ pub fn derive_pneu_string(token_stream: proc_macro::TokenStream) -> proc_macro::
 #[derive(FromDeriveInput, Default)]
 #[darling(default, attributes(pneu_str))]
 struct PneuStrArguments {
-    /// Specify true to implement serde::Deserialize.  The `serde` crate must be imported into the crate in which this
-    /// PneuStr is defined in order for this to work.
+    /// Specify true to derive an implementation of serde::Deserialize.  The `serde` crate must be imported into
+    /// the crate in which this PneuStr is defined in order for this to work.  Using this attribute is optional,
+    /// and a manual implementation of serde::Deserialize is of course possible.
     deserialize: bool,
+    /// Specify true to derive an implementation of serde::Serialize.  The `serde` crate must be imported into
+    /// the crate in which this PneuStr is defined in order for this to work.  Using this attribute is optional,
+    /// and a manual implementation of serde::Serialize is of course possible.  However, in the case of a PneuStr
+    /// with generics, this attribute must be used instead of derive(serde::Serialize) because of the presence of
+    /// std::marker::PhantomData.
+    serialize: bool,
     /// Optionally specify the `str`-valued field.  If not specified, then it will be "0" (i.e. for the ordinary
     /// case of `#[derive(pneutype::PneuStr)] #[repr(transparent)] pub struct ThingStr(str);`).  This attribute
     /// would be used in the case of a PneuStr having generics, e.g.
@@ -307,6 +337,9 @@ pub fn derive_pneu_str(token_stream: proc_macro::TokenStream) -> proc_macro::Tok
     let pneu_str_name = input.ident;
     let (pneu_str_impl_generics, pneu_str_type_generics, pneu_str_where_clause) =
         input.generics.split_for_impl();
+
+    let str_field: syn::Expr =
+        syn::parse_str(pneu_str_arguments.str_field.as_deref().unwrap_or("0")).unwrap();
 
     let serde_deserialize_maybe = if pneu_str_arguments.deserialize {
         // Create new lifetime parameters 'de and 'a
@@ -399,8 +432,20 @@ pub fn derive_pneu_str(token_stream: proc_macro::TokenStream) -> proc_macro::Tok
         quote! {}
     };
 
-    let str_field: syn::Expr =
-        syn::parse_str(pneu_str_arguments.str_field.as_deref().unwrap_or("0")).unwrap();
+    let serde_serialize_maybe = if pneu_str_arguments.serialize {
+        quote! {
+            impl #pneu_str_impl_generics serde::Serialize for #pneu_str_name #pneu_str_type_generics #pneu_str_where_clause {
+                fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+                where
+                    S: serde::Serializer,
+                {
+                    serializer.serialize_str(&self.#str_field)
+                }
+            }
+        }
+    } else {
+        quote! {}
+    };
 
     let try_from_lifetime = syn::Lifetime::new("'s", proc_macro2::Span::call_site());
     let try_from_generics = {
@@ -471,6 +516,8 @@ pub fn derive_pneu_str(token_stream: proc_macro::TokenStream) -> proc_macro::Tok
                 Self::as_str(self).fmt(f)
             }
         }
+
+        #serde_serialize_maybe
 
         impl #try_from_impl_generics TryFrom<&#try_from_lifetime str> for &#try_from_lifetime #pneu_str_name #pneu_str_type_generics {
             type Error = <#pneu_str_name #pneu_str_type_generics as pneutype::Validate>::Error;

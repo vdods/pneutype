@@ -388,3 +388,32 @@ fn test_pneu_string_with_generics() {
     assert_eq!(i.as_str(), "false");
     assert_eq!(i.to_value(), false);
 }
+
+#[test]
+fn test_pneu_string_with_generics_serde() {
+    type I32String = ValueString<i32>;
+    type I32Str = ValueStr<i32>;
+
+    {
+        let i = I32String::try_from("123").expect("pass");
+        println!("i: {:?}", i);
+        assert_eq!(i.as_pneu_str(), I32Str::new_ref("123").expect("pass"));
+        let i_json = serde_json::to_string(&i).expect("pass");
+        println!("i_json: {}", i_json);
+        assert_eq!(i_json, "\"123\"");
+        let i_deserialized: I32String = serde_json::from_str(&i_json).expect("pass");
+        println!("i_deserialized: {:?}", i_deserialized);
+        assert_eq!(i_deserialized, i);
+    }
+
+    {
+        let i = I32Str::new_ref("123").expect("pass");
+        println!("i: {:?}", i);
+        let i_json = serde_json::to_string(&i).expect("pass");
+        println!("i_json: {}", i_json);
+        assert_eq!(i_json, "\"123\"");
+        let i_deserialized: &I32Str = serde_json::from_str(&i_json).expect("pass");
+        println!("i_deserialized: {:?}", i_deserialized);
+        assert_eq!(i_deserialized, i);
+    }
+}
