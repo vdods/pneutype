@@ -116,6 +116,10 @@
 //! }
 //! ```
 
+mod as_str;
+mod new_ref_unchecked;
+mod pneu_str;
+mod pneu_string;
 mod validate;
 
 /// This will implement traits appropriate for a String-based newtype, which will be referred to generally as a "PneuString".
@@ -190,4 +194,7 @@ pub use pneutype_derive::PneuString;
 /// directly on the [PneuStr] via the standard derive.
 pub use pneutype_derive::PneuStr;
 
-pub use crate::validate::Validate;
+pub use crate::{
+    as_str::AsStr, new_ref_unchecked::NewRefUnchecked, pneu_str::PneuStr, pneu_string::PneuString,
+    validate::Validate,
+};

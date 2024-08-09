@@ -36,6 +36,18 @@ fn test_pneu_string_and_pneu_str_1() {
     assert_eq!(s0.as_str(), t2.as_str());
 }
 
+fn do_stuff_with_lowercase_str(_: &LowercaseStr) {
+    // Actually do nothing, ha ha ha!
+}
+
+#[test]
+fn test_pneu_string_borrow() {
+    let t0 = Lowercase::try_from("abcd").expect("pass");
+    do_stuff_with_lowercase_str(&t0);
+    let r0 = &t0;
+    do_stuff_with_lowercase_str(r0);
+}
+
 #[derive(Debug, Eq, PartialEq, pneutype::PneuString)]
 #[pneu_string(borrow = "URLStr", as_pneu_str = "as_url_str")]
 struct URL(String);
@@ -416,4 +428,78 @@ fn test_pneu_string_with_generics_serde() {
         println!("i_deserialized: {:?}", i_deserialized);
         assert_eq!(i_deserialized, i);
     }
+}
+
+#[test]
+fn test_pneu_str_trait() {
+    let x = <LowercaseStr as pneutype::PneuStr>::new_ref("abcxyz").expect("pass");
+    assert_eq!(<LowercaseStr as pneutype::AsStr>::as_str(x), "abcxyz");
+
+    let y = unsafe { <LowercaseStr as pneutype::NewRefUnchecked>::new_ref_unchecked("abcpqr") };
+    assert_eq!(<LowercaseStr as pneutype::AsStr>::as_str(y), "abcpqr");
+}
+
+fn test_pneu_str_trait_case<T>(valid_str: &str, invalid_str: &str)
+where
+    T: std::fmt::Debug + pneutype::PneuStr + ?Sized,
+{
+    let x = T::new_ref(valid_str).expect("pass");
+    assert_eq!(x.as_str(), valid_str);
+
+    T::new_ref(invalid_str).expect_err("pass");
+
+    let y = unsafe { T::new_ref_unchecked(valid_str) };
+    assert_eq!(y.as_str(), valid_str);
+    assert_eq!(<T as AsRef<str>>::as_ref(&y), valid_str);
+}
+
+fn test_pneu_string_trait_case<T>(valid_str: &str, invalid_str: &str)
+where
+    T: std::fmt::Debug + pneutype::PneuString,
+    T::Borrowed: std::fmt::Debug,
+{
+    let x = T::try_from(valid_str.to_string()).expect("pass");
+    assert_eq!(x.as_str(), valid_str);
+    let x_string = x.into_string();
+    assert_eq!(x_string.as_str(), valid_str);
+
+    T::try_from(invalid_str.to_string()).expect_err("pass");
+    T::from_str(invalid_str).expect_err("pass");
+
+    let y = unsafe { T::new_unchecked(valid_str.to_string()) };
+    assert_eq!(y.as_str(), valid_str);
+    let y_ref = <T as AsRef<T::Borrowed>>::as_ref(&y);
+    {
+        use pneutype::AsStr;
+        assert_eq!(y_ref.as_str(), valid_str);
+    }
+    assert_eq!(<T as AsRef<str>>::as_ref(&y), valid_str);
+
+    let z = y.as_pneu_str();
+    {
+        use pneutype::AsStr;
+        assert_eq!(z.as_str(), valid_str);
+    }
+
+    test_pneu_str_trait_case::<T::Borrowed>(valid_str, invalid_str);
+}
+
+#[test]
+fn test_pneu_string_trait_lowercase() {
+    test_pneu_string_trait_case::<Lowercase>("abcxyz", "abcPqr");
+}
+
+#[test]
+fn test_pneu_string_trait_value_string_i32() {
+    test_pneu_string_trait_case::<ValueString<i32>>("123", "345.6");
+}
+
+#[test]
+fn test_pneu_string_trait_value_string_f32() {
+    test_pneu_string_trait_case::<ValueString<f32>>("12.25", "abc");
+}
+
+#[test]
+fn test_pneu_str_trait_value_string_f32() {
+    test_pneu_str_trait_case::<FreeStandingStr>("blah", "");
 }

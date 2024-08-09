@@ -123,10 +123,9 @@ pub fn derive_pneu_string(token_stream: proc_macro::TokenStream) -> proc_macro::
                 where
                     D: serde::Deserializer<#lifetime_de>,
                 {
-                    // struct Visitor;
                     #serde_deserialize_visitor;
 
-                    impl #serde_deserialize_visitor_impl_generics serde::de::Visitor<#lifetime_a> for Visitor #pneu_string_type_generics {
+                    impl #serde_deserialize_visitor_impl_generics serde::de::Visitor<#lifetime_a> for Visitor #pneu_string_type_generics #pneu_string_where_clause {
                         type Value = #pneu_string_name #pneu_string_type_generics;
 
                         fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -218,6 +217,12 @@ pub fn derive_pneu_string(token_stream: proc_macro::TokenStream) -> proc_macro::
             }
         }
 
+        impl #pneu_string_impl_generics pneutype::AsStr for #pneu_string_name #pneu_string_type_generics #pneu_string_where_clause {
+            fn as_str(&self) -> &str {
+                Self::as_str(self)
+            }
+        }
+
         impl #pneu_string_impl_generics std::borrow::Borrow<#pneu_str_name #pneu_string_type_generics> for #pneu_string_name #pneu_string_type_generics #pneu_string_where_clause {
             fn borrow(&self) -> &#pneu_str_name #pneu_string_type_generics {
                 use std::ops::Deref;
@@ -262,6 +267,21 @@ pub fn derive_pneu_string(token_stream: proc_macro::TokenStream) -> proc_macro::
             }
         }
 
+        impl #pneu_string_impl_generics pneutype::PneuString for #pneu_string_name #pneu_string_type_generics #pneu_string_where_clause {
+            type Borrowed = #pneu_str_name #pneu_string_type_generics;
+            type FromStrErr = <Self as std::str::FromStr>::Err;
+            type TryFromStringErr = <Self as TryFrom<String>>::Error;
+            unsafe fn new_unchecked(s: String) -> Self {
+                Self::new_unchecked(s)
+            }
+            fn as_pneu_str(&self) -> &Self::Borrowed {
+                self.#as_pneu_str()
+            }
+            fn into_string(self) -> String {
+                self.into_string()
+            }
+        }
+
         #serde_serialize_maybe
 
         impl #pneu_string_impl_generics std::borrow::ToOwned for #pneu_str_name #pneu_string_type_generics #pneu_string_where_clause {
@@ -293,6 +313,8 @@ pub fn derive_pneu_string(token_stream: proc_macro::TokenStream) -> proc_macro::
 
     // NOTE: This is for debugging the output of the proc macro.  `cargo expand` doesn't seem to actually capture
     // everything that goes wrong for some reason.  Note that it's useful to run `rustfmt` on the generated file.
+    // TODO: Maybe consider adding an optional debug_output_filename attribute to the proc macro that enables this
+    // from the macro call site.
     const DEBUG_OUTPUT: bool = false;
     if DEBUG_OUTPUT {
         let filename = format!("derive_pneu_string.{}.rs", pneu_string_name);
@@ -301,6 +323,7 @@ pub fn derive_pneu_string(token_stream: proc_macro::TokenStream) -> proc_macro::
         use std::io::Write;
         writeln!(file, "{}", output)
             .expect(format!("Could not write to file {:?}", filename).as_str());
+        // TODO: Figure out how to run rustfmt on the output.
     }
 
     output.into()
@@ -465,17 +488,13 @@ pub fn derive_pneu_str(token_stream: proc_macro::TokenStream) -> proc_macro::Tok
         impl #pneu_str_impl_generics #pneu_str_name #pneu_str_type_generics #pneu_str_where_clause {
             /// Validate the given str and wrap it as a reference to this PneuStr type.
             pub fn new_ref(s: &str) -> Result<&Self, <Self as pneutype::Validate>::Error> where Self: pneutype::Validate<Data = str> {
-                use pneutype::Validate;
-                Self::validate(s)?;
-                unsafe { Ok(Self::new_ref_unchecked(s)) }
+                <Self as pneutype::PneuStr>::new_ref(s)
             }
             /// Unsafe: Wrap the given str as a reference to this PneuStr type without validating it.
             /// This requires the caller to guarantee validity.  However, a debug_assert! will be used
             /// to check the validity condition.  For a const version of this, see new_ref_unchecked_const.
             pub unsafe fn new_ref_unchecked(s: &str) -> &Self {
-                debug_assert!(<Self as pneutype::Validate>::validate(s).is_ok(), "programmer error: new_ref_unchecked was passed invalid data");
-                // See https://stackoverflow.com/questions/64977525/how-can-i-create-newtypes-for-an-unsized-type-and-its-owned-counterpart-like-s
-                &*(s as *const str as *const Self)
+                <Self as pneutype::NewRefUnchecked>::new_ref_unchecked(s)
             }
             /// Unsafe: Wrap the given str as a reference to this PneuStr type without validating it.
             /// This requires the caller to guarantee validity.  Because this is a const function, the
@@ -486,23 +505,29 @@ pub fn derive_pneu_str(token_stream: proc_macro::TokenStream) -> proc_macro::Tok
             }
             /// Return the raw &str underlying this PneuStr.
             pub fn as_str(&self) -> &str {
-                &self.#str_field
+                <Self as pneutype::AsStr>::as_str(self)
             }
         }
 
-        impl #pneu_str_impl_generics std::convert::AsRef<str> for #pneu_str_name #pneu_str_type_generics {
+        impl #pneu_str_impl_generics std::convert::AsRef<str> for #pneu_str_name #pneu_str_type_generics #pneu_str_where_clause {
             fn as_ref(&self) -> &str {
                 Self::as_str(self)
             }
         }
 
-        impl #pneu_str_impl_generics std::borrow::Borrow<str> for #pneu_str_name #pneu_str_type_generics {
+        impl #pneu_str_impl_generics pneutype::AsStr for #pneu_str_name #pneu_str_type_generics #pneu_str_where_clause {
+            fn as_str(&self) -> &str {
+                &self.#str_field
+            }
+        }
+
+        impl #pneu_str_impl_generics std::borrow::Borrow<str> for #pneu_str_name #pneu_str_type_generics #pneu_str_where_clause {
             fn borrow(&self) -> &str {
                 Self::as_str(self)
             }
         }
 
-        impl #pneu_str_impl_generics std::ops::Deref for #pneu_str_name #pneu_str_type_generics {
+        impl #pneu_str_impl_generics std::ops::Deref for #pneu_str_name #pneu_str_type_generics #pneu_str_where_clause {
             type Target = str;
             fn deref(&self) -> &Self::Target {
                 Self::as_str(self)
@@ -511,15 +536,24 @@ pub fn derive_pneu_str(token_stream: proc_macro::TokenStream) -> proc_macro::Tok
 
         #serde_deserialize_maybe
 
-        impl #pneu_str_impl_generics std::fmt::Display for #pneu_str_name #pneu_str_type_generics {
+        impl #pneu_str_impl_generics std::fmt::Display for #pneu_str_name #pneu_str_type_generics #pneu_str_where_clause {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
                 Self::as_str(self).fmt(f)
             }
         }
 
+        impl #pneu_str_impl_generics pneutype::NewRefUnchecked for #pneu_str_name #pneu_str_type_generics #pneu_str_where_clause {
+            type Input = str;
+            unsafe fn new_ref_unchecked(input: &Self::Input) -> &Self {
+                debug_assert!(<Self as pneutype::Validate>::validate(input).is_ok(), "programmer error: new_ref_unchecked was passed invalid data");
+                // See https://stackoverflow.com/questions/64977525/how-can-i-create-newtypes-for-an-unsized-type-and-its-owned-counterpart-like-s
+                &*(input as *const str as *const Self)
+            }
+        }
+
         #serde_serialize_maybe
 
-        impl #try_from_impl_generics TryFrom<&#try_from_lifetime str> for &#try_from_lifetime #pneu_str_name #pneu_str_type_generics {
+        impl #try_from_impl_generics TryFrom<&#try_from_lifetime str> for &#try_from_lifetime #pneu_str_name #pneu_str_type_generics #pneu_str_where_clause {
             type Error = <#pneu_str_name #pneu_str_type_generics as pneutype::Validate>::Error;
             fn try_from(s: &#try_from_lifetime str) -> Result<Self, Self::Error> {
                 #pneu_str_name::new_ref(s)
@@ -529,6 +563,8 @@ pub fn derive_pneu_str(token_stream: proc_macro::TokenStream) -> proc_macro::Tok
 
     // NOTE: This is for debugging the output of the proc macro.  `cargo expand` doesn't seem to actually capture
     // everything that goes wrong for some reason.  Note that it's useful to run `rustfmt` on the generated file.
+    // TODO: Maybe consider adding an optional debug_output_filename attribute to the proc macro that enables this
+    // from the macro call site.
     const DEBUG_OUTPUT: bool = false;
     if DEBUG_OUTPUT {
         let filename = format!("derive_pneu_str.{}.rs", pneu_str_name);
@@ -537,6 +573,7 @@ pub fn derive_pneu_str(token_stream: proc_macro::TokenStream) -> proc_macro::Tok
         use std::io::Write;
         writeln!(file, "{}", output)
             .expect(format!("Could not write to file {:?}", filename).as_str());
+        // TODO: Figure out how to run rustfmt on the output.
     }
 
     output.into()

@@ -1,2 +1,4 @@
 /target
 Cargo.lock
+/derive_pneu_string.*.rs
+/derive_pneu_str.*.rs

@@ -47,9 +47,15 @@ impl pneutype::Validate for LowercaseStr {
 /// A string that can be parsed into a value of type T: std::str::FromStr.
 #[derive(Debug, Eq, PartialEq, Hash, pneutype::PneuString)]
 #[pneu_string(borrow = "ValueStr", deserialize, serialize, string_field = "1")]
-pub struct ValueString<T: 'static + std::str::FromStr>(std::marker::PhantomData<T>, String);
+pub struct ValueString<T: 'static + std::str::FromStr>(std::marker::PhantomData<T>, String)
+where
+    <T as std::str::FromStr>::Err: std::fmt::Debug;
 
-impl<T: std::str::FromStr> ValueString<T> {
+impl<T> ValueString<T>
+where
+    T: std::str::FromStr,
+    <T as std::str::FromStr>::Err: std::fmt::Debug,
+{
     /// Can set this ValueString using the given value and its constraint will still be satisfied.
     /// This will still check the validity condition, because there's no guarantee that
     /// <T as std::fmt::Display> will produce the exact string that <T as std::str::FromStr> expects.
@@ -67,7 +73,9 @@ impl<T: std::str::FromStr> ValueString<T> {
 #[derive(Debug, Eq, PartialEq, Hash, pneutype::PneuStr)]
 #[pneu_str(deserialize, serialize, str_field = "1")]
 #[repr(transparent)] // `repr(transparent)` is required for PneuStr!
-pub struct ValueStr<T: 'static + std::str::FromStr>(std::marker::PhantomData<T>, str);
+pub struct ValueStr<T: 'static + std::str::FromStr>(std::marker::PhantomData<T>, str)
+where
+    <T as std::str::FromStr>::Err: std::fmt::Debug;
 
 impl<T> ValueStr<T>
 where
@@ -82,6 +90,7 @@ where
 impl<T> pneutype::Validate for ValueStr<T>
 where
     T: std::str::FromStr,
+    <T as std::str::FromStr>::Err: std::fmt::Debug,
 {
     type Data = str;
     type Error = &'static str;
