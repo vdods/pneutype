@@ -119,7 +119,7 @@ pub fn derive_pneu_string(token_stream: proc_macro::TokenStream) -> proc_macro::
 
         quote! {
             impl #serde_deserialize_impl_generics serde::Deserialize<#lifetime_de> for #pneu_string_name #pneu_string_type_generics #pneu_string_where_clause {
-                fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+                fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
                 where
                     D: serde::Deserializer<#lifetime_de>,
                 {
@@ -131,13 +131,13 @@ pub fn derive_pneu_string(token_stream: proc_macro::TokenStream) -> proc_macro::
                         fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
                             formatter.write_str("a string")
                         }
-                        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+                        fn visit_str<E>(self, v: &str) -> std::result::Result<Self::Value, E>
                         where
                             E: serde::de::Error,
                         {
                             #pneu_string_name::try_from(v).map_err(serde::de::Error::custom)
                         }
-                        fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
+                        fn visit_string<E>(self, v: String) -> std::result::Result<Self::Value, E>
                         where
                             E: serde::de::Error,
                         {
@@ -156,7 +156,7 @@ pub fn derive_pneu_string(token_stream: proc_macro::TokenStream) -> proc_macro::
     let serde_serialize_maybe = if pneu_string_arguments.serialize {
         quote! {
             impl #pneu_string_impl_generics serde::Serialize for #pneu_string_name #pneu_string_type_generics #pneu_string_where_clause {
-                fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+                fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
                 where
                     S: serde::Serializer,
                 {
@@ -246,7 +246,7 @@ pub fn derive_pneu_string(token_stream: proc_macro::TokenStream) -> proc_macro::
         #serde_deserialize_maybe
 
         impl #pneu_string_impl_generics std::fmt::Display for #pneu_string_name #pneu_string_type_generics #pneu_string_where_clause {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
                 Self::as_str(self).fmt(f)
             }
         }
@@ -260,7 +260,7 @@ pub fn derive_pneu_string(token_stream: proc_macro::TokenStream) -> proc_macro::
 
         impl #pneu_string_impl_generics std::str::FromStr for #pneu_string_name #pneu_string_type_generics #pneu_string_where_clause {
             type Err = <#pneu_str_name #pneu_string_type_generics as pneutype::Validate>::Error;
-            fn from_str(s: &str) -> Result<Self, Self::Err> {
+            fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
                 <#pneu_str_name #pneu_string_type_generics as pneutype::Validate>::validate(s)?;
                 let s = s.to_string();
                 Ok(#self_construction)
@@ -295,7 +295,7 @@ pub fn derive_pneu_string(token_stream: proc_macro::TokenStream) -> proc_macro::
 
         impl #pneu_string_impl_generics TryFrom<&str> for #pneu_string_name #pneu_string_type_generics #pneu_string_where_clause {
             type Error = <#pneu_str_name #pneu_string_type_generics as pneutype::Validate>::Error;
-            fn try_from(s: &str) -> Result<Self, Self::Error> {
+            fn try_from(s: &str) -> std::result::Result<Self, Self::Error> {
                 <#pneu_str_name #pneu_string_type_generics as pneutype::Validate>::validate(s)?;
                 let s = s.to_string();
                 Ok(#self_construction)
@@ -304,7 +304,7 @@ pub fn derive_pneu_string(token_stream: proc_macro::TokenStream) -> proc_macro::
 
         impl #pneu_string_impl_generics TryFrom<String> for #pneu_string_name #pneu_string_type_generics #pneu_string_where_clause {
             type Error = <#pneu_str_name #pneu_string_type_generics as pneutype::Validate>::Error;
-            fn try_from(s: String) -> Result<Self, Self::Error> {
+            fn try_from(s: String) -> std::result::Result<Self, Self::Error> {
                 <#pneu_str_name #pneu_string_type_generics as pneutype::Validate>::validate(s.as_str())?;
                 unsafe { Ok(Self::new_unchecked(s)) }
             }
@@ -427,7 +427,7 @@ pub fn derive_pneu_str(token_stream: proc_macro::TokenStream) -> proc_macro::Tok
 
         quote! {
             impl #serde_deserialize_impl_generics serde::Deserialize<#lifetime_de> for &#lifetime_a #pneu_str_name #pneu_str_type_generics #pneu_str_where_clause {
-                fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+                fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
                 where
                     D: serde::Deserializer<#lifetime_de>,
                 {
@@ -439,7 +439,7 @@ pub fn derive_pneu_str(token_stream: proc_macro::TokenStream) -> proc_macro::Tok
                         fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
                             formatter.write_str("a borrowed string")
                         }
-                        fn visit_borrowed_str<E>(self, v: &#lifetime_a str) -> Result<Self::Value, E>
+                        fn visit_borrowed_str<E>(self, v: &#lifetime_a str) -> std::result::Result<Self::Value, E>
                         where
                             E: serde::de::Error,
                         {
@@ -458,7 +458,7 @@ pub fn derive_pneu_str(token_stream: proc_macro::TokenStream) -> proc_macro::Tok
     let serde_serialize_maybe = if pneu_str_arguments.serialize {
         quote! {
             impl #pneu_str_impl_generics serde::Serialize for #pneu_str_name #pneu_str_type_generics #pneu_str_where_clause {
-                fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+                fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
                 where
                     S: serde::Serializer,
                 {
@@ -487,7 +487,7 @@ pub fn derive_pneu_str(token_stream: proc_macro::TokenStream) -> proc_macro::Tok
     let output = quote! {
         impl #pneu_str_impl_generics #pneu_str_name #pneu_str_type_generics #pneu_str_where_clause {
             /// Validate the given str and wrap it as a reference to this PneuStr type.
-            pub fn new_ref(s: &str) -> Result<&Self, <Self as pneutype::Validate>::Error> where Self: pneutype::Validate<Data = str> {
+            pub fn new_ref(s: &str) -> std::result::Result<&Self, <Self as pneutype::Validate>::Error> where Self: pneutype::Validate<Data = str> {
                 <Self as pneutype::PneuStr>::new_ref(s)
             }
             /// Unsafe: Wrap the given str as a reference to this PneuStr type without validating it.
@@ -537,7 +537,7 @@ pub fn derive_pneu_str(token_stream: proc_macro::TokenStream) -> proc_macro::Tok
         #serde_deserialize_maybe
 
         impl #pneu_str_impl_generics std::fmt::Display for #pneu_str_name #pneu_str_type_generics #pneu_str_where_clause {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
                 Self::as_str(self).fmt(f)
             }
         }
@@ -555,7 +555,7 @@ pub fn derive_pneu_str(token_stream: proc_macro::TokenStream) -> proc_macro::Tok
 
         impl #try_from_impl_generics TryFrom<&#try_from_lifetime str> for &#try_from_lifetime #pneu_str_name #pneu_str_type_generics #pneu_str_where_clause {
             type Error = <#pneu_str_name #pneu_str_type_generics as pneutype::Validate>::Error;
-            fn try_from(s: &#try_from_lifetime str) -> Result<Self, Self::Error> {
+            fn try_from(s: &#try_from_lifetime str) -> std::result::Result<Self, Self::Error> {
                 #pneu_str_name::new_ref(s)
             }
         }
