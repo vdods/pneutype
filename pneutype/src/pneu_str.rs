@@ -4,7 +4,6 @@ pub trait PneuStr:
     AsRef<str>
     + AsStr
     + std::borrow::Borrow<str>
-    + std::fmt::Display
     + NewRefUnchecked<Input = str>
     + Validate<Data = str, Error = Self::ValidateError>
 {
@@ -18,7 +17,6 @@ where
     T: AsRef<str>
         + AsStr
         + std::borrow::Borrow<str>
-        + std::fmt::Display
         + NewRefUnchecked<Input = str>
         + ?Sized
         + Validate<Data = str>,

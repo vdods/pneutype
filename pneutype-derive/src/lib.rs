@@ -8,26 +8,39 @@ use quote::quote;
 #[derive(FromDeriveInput, Default)]
 #[darling(default, attributes(pneu_string))]
 struct PneuStringArguments {
+    /// Optionally specify the name for a function that will return &self as a reference to the associated PneuStr.
+    /// If not specified, then the name will be "as_pneu_str".
+    as_pneu_str: Option<String>,
     /// Specify the PneuStr analog to this PneuString.  This will define the target of std::borrow::Borrow and std::ops::Deref.
     borrow: String,
     /// Specify true to derive an implementation of serde::Deserialize.  The `serde` crate must be imported into
     /// the crate in which this PneuString is defined in order for this to work.  Using this attribute is optional,
     /// and a manual implementation of serde::Deserialize is of course possible.
     deserialize: bool,
+    /// Specify true to omit definition of an implementation of `std::fmt::Display` that forwards the call
+    /// to that of the underlying String.  This is useful when the PneuString represents some sensitive data that
+    /// should not be printed.
+    omit_display: bool,
+    /// Specify true to omit the default implementation of `pub fn into_string(self) -> String` which consumes
+    /// this PneuString and returns the underlying String.  Omitting the default implementation of this method is
+    /// appropriate when this PneuString implements std::ops::Drop, e.g. in zeroize::ZeroizeOnDrop.
+    omit_into_string: bool,
     /// Specify true to derive an implementation of serde::Serialize.  The `serde` crate must be imported into
     /// the crate in which this PneuString is defined in order for this to work.  Using this attribute is optional,
     /// and a manual implementation of serde::Serialize is of course possible.  However, in the case of a PneuString
     /// with generics, this attribute must be used instead of derive(serde::Serialize) because of the presence of
     /// std::marker::PhantomData.
     serialize: bool,
-    /// Optionally specify the name for a function that will return &self as a reference to the associated PneuStr.
-    /// If not specified, then the name will be "as_pneu_str".
-    as_pneu_str: Option<String>,
     /// Optionally specify the `String`-valued field.  If not specified, then it will be "0" (i.e. for the ordinary
     /// case of `#[derive(pneutype::PneuString)] pub struct ThingString(String);`).  This attribute
     /// would be used in the case of a PneuString having generics, e.g.
     /// `#[derive(pneutype::PneuString)] #[pneu_string(string_field = "s")] pub struct ThingString<T> { t: std::marker::PhantomData<T>, s: String }`
     string_field: Option<String>,
+    /// Specify true to write the code that this proc macro generates to a file whose name contains that of
+    /// this PneuString.  This is useful to debug compile errors that involve the generated code, or just to
+    /// see exactly what code is being generated.  The generated code is not meant to be used in the crate,
+    /// just viewed.
+    write_generated_code: bool,
 }
 
 #[proc_macro_derive(PneuString, attributes(pneu_string))]
@@ -168,6 +181,29 @@ pub fn derive_pneu_string(token_stream: proc_macro::TokenStream) -> proc_macro::
         quote! {}
     };
 
+    let display_maybe = if pneu_string_arguments.omit_display {
+        quote! {}
+    } else {
+        quote! {
+            impl #pneu_string_impl_generics std::fmt::Display for #pneu_string_name #pneu_string_type_generics #pneu_string_where_clause {
+                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+                    Self::as_str(self).fmt(f)
+                }
+            }
+        }
+    };
+
+    let into_string_maybe = if pneu_string_arguments.omit_into_string {
+        quote! {}
+    } else {
+        quote! {
+            /// Dissolve this instance and take the underlying String.
+            pub fn into_string(self) -> String {
+                self.#string_field
+            }
+        }
+    };
+
     let as_pneu_str: syn::Ident = if let Some(as_pneu_str) = pneu_string_arguments.as_pneu_str {
         syn::parse_str(&as_pneu_str).unwrap()
     } else {
@@ -198,10 +234,7 @@ pub fn derive_pneu_string(token_stream: proc_macro::TokenStream) -> proc_macro::
             pub fn as_str(&self) -> &str {
                 self.#string_field.as_str()
             }
-            /// Dissolve this instance and take the underlying String.
-            pub fn into_string(self) -> String {
-                self.#string_field
-            }
+            #into_string_maybe
         }
 
         impl #pneu_string_impl_generics std::convert::AsRef<#pneu_str_name #pneu_string_type_generics> for #pneu_string_name #pneu_string_type_generics #pneu_string_where_clause {
@@ -245,11 +278,7 @@ pub fn derive_pneu_string(token_stream: proc_macro::TokenStream) -> proc_macro::
 
         #serde_deserialize_maybe
 
-        impl #pneu_string_impl_generics std::fmt::Display for #pneu_string_name #pneu_string_type_generics #pneu_string_where_clause {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-                Self::as_str(self).fmt(f)
-            }
-        }
+        #display_maybe
 
         impl #pneu_string_impl_generics From<&#pneu_str_name #pneu_string_type_generics> for #pneu_string_name #pneu_string_type_generics #pneu_string_where_clause {
             fn from(s: &#pneu_str_name #pneu_string_type_generics) -> Self {
@@ -276,9 +305,6 @@ pub fn derive_pneu_string(token_stream: proc_macro::TokenStream) -> proc_macro::
             }
             fn as_pneu_str(&self) -> &Self::Borrowed {
                 self.#as_pneu_str()
-            }
-            fn into_string(self) -> String {
-                self.into_string()
             }
         }
 
@@ -312,18 +338,36 @@ pub fn derive_pneu_string(token_stream: proc_macro::TokenStream) -> proc_macro::
     };
 
     // NOTE: This is for debugging the output of the proc macro.  `cargo expand` doesn't seem to actually capture
-    // everything that goes wrong for some reason.  Note that it's useful to run `rustfmt` on the generated file.
-    // TODO: Maybe consider adding an optional debug_output_filename attribute to the proc macro that enables this
-    // from the macro call site.
-    const DEBUG_OUTPUT: bool = false;
-    if DEBUG_OUTPUT {
+    // everything that goes wrong for some reason.
+    if pneu_string_arguments.write_generated_code {
         let filename = format!("derive_pneu_string.{}.rs", pneu_string_name);
-        let mut file = std::fs::File::create(filename.as_str())
-            .expect(format!("Could not create file {:?}", filename).as_str());
-        use std::io::Write;
-        writeln!(file, "{}", output)
-            .expect(format!("Could not write to file {:?}", filename).as_str());
-        // TODO: Figure out how to run rustfmt on the output.
+
+        // Write the unformatted output to a file.
+        {
+            let mut file = std::fs::File::create(filename.as_str())
+                .expect(format!("Could not create file {:?}", filename).as_str());
+            use std::io::Write;
+
+            // If rustfmt is not enabled, then add a note to the file as a hint to the user.
+            #[cfg(not(feature = "rustfmt"))]
+            {
+                writeln!(file, "//\n// NOTE: Enable the \"rustfmt\" feature of the pneutype crate in order to format the generated code.\n//\n").expect(format!("Could not write to file {:?}", filename).as_str());
+            }
+
+            writeln!(file, "{}", output)
+                .expect(format!("Could not write to file {:?}", filename).as_str());
+        }
+
+        // Format the output file using rustfmt if enabled.
+        #[cfg(feature = "rustfmt")]
+        {
+            let config = rust_format::Config::new_str()
+                .post_proc(rust_format::PostProcess::ReplaceMarkersAndDocBlocks);
+            use rust_format::Formatter;
+            rust_format::RustFmt::from_config(config)
+                .format_file(std::path::Path::new(filename.as_str()))
+                .unwrap();
+        }
     }
 
     output.into()
@@ -340,6 +384,10 @@ struct PneuStrArguments {
     /// the crate in which this PneuStr is defined in order for this to work.  Using this attribute is optional,
     /// and a manual implementation of serde::Deserialize is of course possible.
     deserialize: bool,
+    /// Specify true to omit definition of an implementation of `std::fmt::Display` that forwards the call
+    /// to that of the underlying str.  This is useful when the PneuStr represents some sensitive data that
+    /// should not be printed.
+    omit_display: bool,
     /// Specify true to derive an implementation of serde::Serialize.  The `serde` crate must be imported into
     /// the crate in which this PneuStr is defined in order for this to work.  Using this attribute is optional,
     /// and a manual implementation of serde::Serialize is of course possible.  However, in the case of a PneuStr
@@ -351,6 +399,11 @@ struct PneuStrArguments {
     /// would be used in the case of a PneuStr having generics, e.g.
     /// `#[derive(pneutype::PneuStr)] #[pneu_str(str_field = "s")] #[repr(transparent)] pub struct ThingStr<T> { t: std::marker::PhantomData<T>, s: str }`
     str_field: Option<String>,
+    /// Specify true to write the code that this proc macro generates to a file whose name contains that of
+    /// this PneuStr.  This is useful to debug compile errors that involve the generated code, or just to
+    /// see exactly what code is being generated.  The generated code is not meant to be used in the crate,
+    /// just viewed.
+    write_generated_code: bool,
 }
 
 #[proc_macro_derive(PneuStr, attributes(pneu_str))]
@@ -470,6 +523,18 @@ pub fn derive_pneu_str(token_stream: proc_macro::TokenStream) -> proc_macro::Tok
         quote! {}
     };
 
+    let display_maybe = if pneu_str_arguments.omit_display {
+        quote! {}
+    } else {
+        quote! {
+            impl #pneu_str_impl_generics std::fmt::Display for #pneu_str_name #pneu_str_type_generics #pneu_str_where_clause {
+                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+                    Self::as_str(self).fmt(f)
+                }
+            }
+        }
+    };
+
     let try_from_lifetime = syn::Lifetime::new("'s", proc_macro2::Span::call_site());
     let try_from_generics = {
         let try_from_lifetime_def = syn::LifetimeDef::new(try_from_lifetime.clone());
@@ -536,11 +601,7 @@ pub fn derive_pneu_str(token_stream: proc_macro::TokenStream) -> proc_macro::Tok
 
         #serde_deserialize_maybe
 
-        impl #pneu_str_impl_generics std::fmt::Display for #pneu_str_name #pneu_str_type_generics #pneu_str_where_clause {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-                Self::as_str(self).fmt(f)
-            }
-        }
+        #display_maybe
 
         impl #pneu_str_impl_generics pneutype::NewRefUnchecked for #pneu_str_name #pneu_str_type_generics #pneu_str_where_clause {
             type Input = str;
@@ -562,18 +623,36 @@ pub fn derive_pneu_str(token_stream: proc_macro::TokenStream) -> proc_macro::Tok
     };
 
     // NOTE: This is for debugging the output of the proc macro.  `cargo expand` doesn't seem to actually capture
-    // everything that goes wrong for some reason.  Note that it's useful to run `rustfmt` on the generated file.
-    // TODO: Maybe consider adding an optional debug_output_filename attribute to the proc macro that enables this
-    // from the macro call site.
-    const DEBUG_OUTPUT: bool = false;
-    if DEBUG_OUTPUT {
+    // everything that goes wrong for some reason.
+    if pneu_str_arguments.write_generated_code {
         let filename = format!("derive_pneu_str.{}.rs", pneu_str_name);
-        let mut file = std::fs::File::create(filename.as_str())
-            .expect(format!("Could not create file {:?}", filename).as_str());
-        use std::io::Write;
-        writeln!(file, "{}", output)
-            .expect(format!("Could not write to file {:?}", filename).as_str());
-        // TODO: Figure out how to run rustfmt on the output.
+
+        // Write the unformatted output to a file.
+        {
+            let mut file = std::fs::File::create(filename.as_str())
+                .expect(format!("Could not create file {:?}", filename).as_str());
+            use std::io::Write;
+
+            // If rustfmt is not enabled, then add a note to the file as a hint to the user.
+            #[cfg(not(feature = "rustfmt"))]
+            {
+                writeln!(file, "//\n// NOTE: Enable the \"rustfmt\" feature of the pneutype crate in order to format the generated code.\n//\n").expect(format!("Could not write to file {:?}", filename).as_str());
+            }
+
+            writeln!(file, "{}", output)
+                .expect(format!("Could not write to file {:?}", filename).as_str());
+        }
+
+        // Format the output file using rustfmt if enabled.
+        #[cfg(feature = "rustfmt")]
+        {
+            let config = rust_format::Config::new_str()
+                .post_proc(rust_format::PostProcess::ReplaceMarkersAndDocBlocks);
+            use rust_format::Formatter;
+            rust_format::RustFmt::from_config(config)
+                .format_file(std::path::Path::new(filename.as_str()))
+                .unwrap();
+        }
     }
 
     output.into()

@@ -49,7 +49,7 @@ fn test_pneu_string_borrow() {
 }
 
 #[derive(Debug, Eq, PartialEq, pneutype::PneuString)]
-#[pneu_string(borrow = "URLStr", as_pneu_str = "as_url_str")]
+#[pneu_string(as_pneu_str = "as_url_str", borrow = "URLStr")]
 struct URL(String);
 
 #[derive(Debug, Eq, PartialEq, pneutype::PneuStr)]
@@ -460,8 +460,6 @@ where
 {
     let x = T::try_from(valid_str.to_string()).expect("pass");
     assert_eq!(x.as_str(), valid_str);
-    let x_string = x.into_string();
-    assert_eq!(x_string.as_str(), valid_str);
 
     T::try_from(invalid_str.to_string()).expect_err("pass");
     T::from_str(invalid_str).expect_err("pass");

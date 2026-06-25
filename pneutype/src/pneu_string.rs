@@ -7,7 +7,6 @@ pub trait PneuString:
     + std::borrow::Borrow<Self::Borrowed>
     + std::borrow::Borrow<str>
     + std::ops::Deref<Target = Self::Borrowed>
-    + std::fmt::Display
     + std::str::FromStr<Err = Self::FromStrErr>
     + TryFrom<String, Error = Self::TryFromStringErr>
 {
@@ -16,7 +15,6 @@ pub trait PneuString:
     type TryFromStringErr: std::fmt::Debug + std::fmt::Display;
     unsafe fn new_unchecked(s: String) -> Self;
     fn as_pneu_str(&self) -> &Self::Borrowed;
-    fn into_string(self) -> String;
 }
 
 impl PneuString for String {
@@ -28,8 +26,5 @@ impl PneuString for String {
     }
     fn as_pneu_str(&self) -> &Self::Borrowed {
         self.as_str()
-    }
-    fn into_string(self) -> String {
-        self
     }
 }

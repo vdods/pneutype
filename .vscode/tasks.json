@@ -30,7 +30,8 @@
 			"command": "cargo",
 			"args": [
 				"test",
-				"--all-features"
+				"--all-features",
+				"--workspace"
 			],
 			"group": {
 				"kind": "build",
@@ -56,6 +57,29 @@
 			"args": [
 				"doc",
 				"--all-features"
+			],
+			"group": "build",
+			"presentation": {
+				"clear": true,
+				"revealProblems": "onProblem"
+			},
+			"problemMatcher": [
+				{
+					"base": "$rustc",
+					"fileLocation": [
+						"relative"
+					]
+				}
+			]
+		},
+		{
+			"label": "cargo test pneutype-derive-tests",
+			"type": "shell",
+			"command": "cargo",
+			"args": [
+				"test",
+				"--package",
+				"pneutype-derive-tests"
 			],
 			"group": "build",
 			"presentation": {

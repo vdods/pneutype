@@ -1,14 +1,20 @@
 [package]
 name = "pneutype-derive"
-version = "0.5.1"
+version = "0.6.0"
 authors = ["Victor Dods <victor.dods@gmail.com>"]
 edition = "2021"
 
 [lib]
 proc-macro = true
 
+[features]
+rustfmt = ["dep:rust-format"]
+
 [dependencies]
 darling = "0.13.1"
 proc-macro2 = "1.0.36"
 quote = "1.0.14"
+rust-format = { version = "0.3.4", optional = true, features = [
+    "post_process",
+] }
 syn = { version = "1.0.85", features = ["full"] }

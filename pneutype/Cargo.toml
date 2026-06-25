@@ -1,8 +1,11 @@
 [package]
 name = "pneutype"
-version = "0.5.1"
+version = "0.6.0"
 authors = ["Victor Dods <victor.dods@gmail.com>"]
 edition = "2021"
+
+[features]
+rustfmt = ["pneutype-derive/rustfmt"]
 
 [dependencies]
 pneutype-derive = { path = "../pneutype-derive" }

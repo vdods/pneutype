@@ -99,3 +99,60 @@ where
         Ok(())
     }
 }
+
+//
+
+#[derive(pneutype::PneuStr)]
+#[repr(transparent)]
+struct DroppableStr(str);
+impl pneutype::Validate for DroppableStr {
+    type Data = str;
+    type Error = &'static str;
+    fn validate(_data: &Self::Data) -> Result<(), Self::Error> {
+        Ok(())
+    }
+}
+
+#[derive(pneutype::PneuString)]
+#[pneu_string(borrow = "DroppableStr", omit_into_string)]
+struct DroppableString(String);
+
+impl Drop for DroppableString {
+    fn drop(&mut self) {
+        self.0 = "!dropped!".to_string();
+    }
+}
+
+//
+
+#[derive(pneutype::PneuStr)]
+#[pneu_str(omit_display, write_generated_code)]
+#[repr(transparent)]
+pub struct SuperSecretStr(str);
+
+impl pneutype::Validate for SuperSecretStr {
+    type Data = str;
+    type Error = &'static str;
+    fn validate(_data: &Self::Data) -> Result<(), Self::Error> {
+        Ok(())
+    }
+}
+
+// Verify that PneuString plays nicely with zeroize.
+#[derive(pneutype::PneuString)]
+#[pneu_string(borrow = "SuperSecretStr", omit_display, omit_into_string, write_generated_code)]
+pub struct SuperSecret(String);
+
+impl Drop for SuperSecret {
+    fn drop(&mut self) {
+        zeroize::Zeroize::zeroize(self);
+    }
+}
+
+impl zeroize::Zeroize for SuperSecret {
+    fn zeroize(&mut self) {
+        self.0.zeroize();
+    }
+}
+
+impl zeroize::ZeroizeOnDrop for SuperSecret {}
